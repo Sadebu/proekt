@@ -265,15 +265,22 @@ export function SmartConstructorGame({ onComplete }: { onComplete: (score: numbe
 export function TaskTreeGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
   const content = miniGameContent.task_tree;
   
-  // Все задачи: правильные + неправильные
+  // Все задачи: правильные + неправильные (более сложные)
   const allTasks: { text: string; correct: boolean; reason?: string }[] = [
     ...content.correctTasks.map(t => ({ text: t, correct: true as const })),
     { text: 'Сделать буклет', correct: false, reason: 'Слишком общая — это цель, не задача' },
-    { text: 'Прочитать книги', correct: false, reason: 'Неточный глагол, неясно какие книги' },
-    { text: 'Сделать опрос и создать буклет', correct: false, reason: 'Два действия в одной задаче' },
-    { text: 'Подумать о проблеме', correct: false, reason: 'Нет глагола действия, неконкретно' },
-    { text: 'Всё подготовить', correct: false, reason: 'Слишком общая, нет конкретики' },
-  ].sort(() => Math.random() - 0.5);
+    { text: 'Провести исследование', correct: false, reason: 'Слишком общая, не конкретизировано что исследовать' },
+    { text: 'Изучить литературу и провести опрос', correct: false, reason: 'Два действия в одной задаче' },
+    { text: 'Подготовить презентацию', correct: false, reason: 'Это не шаг к цели, а финальное оформление' },
+    { text: 'Собрать данные', correct: false, reason: 'Неясно какие данные и как' },
+  ];
+  
+  // Стабильная сортировка: правильные задачи в начале, потом неправильные
+  const correctTasks = allTasks.filter(t => t.correct);
+  const wrongTasks = allTasks.filter(t => !t.correct);
+  const shuffledCorrect = correctTasks.sort(() => Math.random() - 0.5);
+  const shuffledWrong = wrongTasks.sort(() => Math.random() - 0.5);
+  const mixedTasks = [...shuffledCorrect, ...shuffledWrong].sort(() => Math.random() - 0.5);
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
@@ -292,11 +299,11 @@ export function TaskTreeGame({ onComplete }: { onComplete: (score: number, max: 
     let correct = 0;
     const answers: string[] = [];
     
-    allTasks.forEach((task, idx) => {
+    mixedTasks.forEach((task, idx) => {
       const isSelected = selected.has(idx);
       if (task.correct && isSelected) { correct++; answers.push(`✓ ${task.text}`); }
       else if (task.correct && !isSelected) { answers.push(`✗ Пропущена: ${task.text}`); }
-      else if (!task.correct && isSelected) { answers.push(`✗ Лишняя: ${task.text} — ${task.reason}`); }
+      else if (!task.correct && isSelected && task.reason) { answers.push(`✗ Лишняя: ${task.text} — ${task.reason}`); }
       else { answers.push(`○ Верно пропущена: ${task.text}`); }
     });
 
@@ -317,7 +324,7 @@ export function TaskTreeGame({ onComplete }: { onComplete: (score: number, max: 
       </div>
       <p className="text-xs text-gray-500 mb-3">Отметь только правильные задачи (4–6 штук). Каждая должна начинаться с глагола действия и быть конкретным шагом.</p>
       <div className="space-y-2">
-        {allTasks.map((task, idx) => (
+        {mixedTasks.map((task, idx) => (
           <div key={idx} onClick={() => !submitted && toggle(idx)}
             className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-3 ${
               submitted 
@@ -495,6 +502,11 @@ export function DefensePresentationGame({ onComplete }: { onComplete: (score: nu
       { text: 'Думаю, успеем, если постараемся.', correct: false },
       { text: 'Ну, план есть, а там посмотрим.', correct: false },
     ],
+    [
+      { text: 'Существующие буклеты общие. Наш — конкретно для 5–6 классов нашей школы, с учётом результатов опроса о их пробелах в знаниях.', correct: true },
+      { text: 'Наш буклет красивее и интереснее.', correct: false },
+      { text: 'Мы добавим больше картинок.', correct: false },
+    ],
   ];
 
   const submitQuestionAnswer = (optIdx: number) => {
@@ -509,10 +521,10 @@ export function DefensePresentationGame({ onComplete }: { onComplete: (score: nu
       newAnswers.forEach((ansIdx, qIdx) => {
         if (questionOptions[qIdx][ansIdx].correct) qScore++;
       });
-      const finalScore = Math.min(score + qScore, 5);
+      const finalScore = Math.min(score + qScore, 6);
       setScore(finalScore);
       setPhase('result');
-      onComplete(finalScore, 5, newAnswers.map((a, i) => questionOptions[i][a].text));
+      onComplete(finalScore, 6, newAnswers.map((a, i) => questionOptions[i][a].text));
     }
   };
 
@@ -564,9 +576,9 @@ export function DefensePresentationGame({ onComplete }: { onComplete: (score: nu
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-rose-100">
       <h3 className="text-xl font-bold text-rose-800 mb-2">Результат защиты</h3>
-      <div className={`p-4 rounded-lg ${score >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-        <p className="font-semibold">{score >= 4 ? content.explanation.correct : content.explanation.incorrect}</p>
-        <p className="text-sm mt-2">Баллы за защиту: {score}/5</p>
+      <div className={`p-4 rounded-lg ${score >= 5 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
+        <p className="font-semibold">{score >= 5 ? content.explanation.correct : content.explanation.incorrect}</p>
+        <p className="text-sm mt-2">Баллы за защиту: {score}/6</p>
       </div>
     </div>
   );
@@ -700,74 +712,154 @@ export function GanttBuilderGame({ onComplete, onPlanUpdate }: { onComplete: (sc
   );
 }
 
-// ==================== MINI GAME: Find Errors ====================
+// ==================== MINI GAME: Find Errors (визуальный план-график) ====================
 export function FindErrorsGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
-  const content = miniGameContent.find_errors;
-  const [foundErrors, setFoundErrors] = useState<Set<number>>(new Set());
+  // Визуальный план-график с ошибками
+  const ganttTasks = [
+    { id: 1, name: 'Литература', start: 1, duration: 3, color: '#3B82F6', hasError: false },
+    { id: 2, name: 'Теория', start: 2, duration: 3, color: '#10B981', hasError: true, errorType: 'overlap', explanation: 'Параллельно с литературой — нарушение зависимости "финиш-старт"' },
+    { id: 3, name: 'Эмпирика', start: 5, duration: 4, color: '#F59E0B', hasError: false },
+    { id: 4, name: 'Данные', start: 9, duration: 2, color: '#EF4444', hasError: false },
+    { id: 5, name: 'Продукт', start: 11, duration: 4, color: '#8B5CF6', hasError: false },
+    { id: 6, name: 'Оформление', start: 15, duration: 3, color: '#EC4899', hasError: false },
+    { id: 7, name: 'Заключение', start: 14, duration: 1, color: '#06B6D4', hasError: true, errorType: 'order', explanation: 'Заключение до оформления — нарушение логики' },
+    { id: 8, name: 'Презентация', start: 18, duration: 2, color: '#84CC16', hasError: true, errorType: 'no_buffer', explanation: 'Нет буфера перед КП4 (неделя 18)' },
+  ];
+
+  const milestones = [
+    { week: 12, name: 'КП3' },
+    { week: 18, name: 'КП4' },
+    { week: 26, name: 'КП5' },
+    { week: 29, name: 'КП6' },
+    { week: 34, name: 'Защита' },
+  ];
+
+  const [clickedTasks, setClickedTasks] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
+  const [answers, setAnswers] = useState<string[]>([]);
 
-  const toggleError = (idx: number) => {
-    setFoundErrors(prev => {
+  const toggleTask = (taskId: number) => {
+    setClickedTasks(prev => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
       return next;
     });
   };
 
   const handleSubmit = () => {
     let correct = 0;
-    const answers: string[] = [];
-    content.errors.forEach((err, idx) => {
-      const found = foundErrors.has(idx);
-      if (found) correct++;
-      answers.push(`${err.error}: ${found ? 'найдено ✓' : 'пропущено ✗'}`);
+    const newAnswers: string[] = [];
+    
+    ganttTasks.forEach(task => {
+      const isClicked = clickedTasks.has(task.id);
+      if (task.hasError && isClicked) {
+        correct++;
+        newAnswers.push(`✓ ${task.name}: ${task.explanation}`);
+      } else if (task.hasError && !isClicked) {
+        newAnswers.push(`✗ Пропущена ошибка: ${task.name}`);
+      } else if (!task.hasError && isClicked) {
+        newAnswers.push(`✗ Ложная тревога: ${task.name}`);
+      }
     });
+
+    setAnswers(newAnswers);
     setScore(correct);
     setSubmitted(true);
-    onComplete(correct, content.errors.length, answers);
+    onComplete(correct, ganttTasks.filter(t => t.hasError).length, newAnswers);
   };
+
+  const totalWeeks = 20;
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-orange-100">
-      <h3 className="text-xl font-bold text-orange-800 mb-2">{content.title}</h3>
-      <p className="text-gray-600 mb-4">{content.description}</p>
+      <h3 className="text-xl font-bold text-orange-800 mb-2">Найди ошибки в плане-графике</h3>
+      <p className="text-gray-600 mb-4">Перед тобой визуальный план-график. Кликай на задачи, в которых есть ошибки (нарушение зависимостей, нет буферов, неправильный порядок).</p>
       
-      {/* Fake Gantt chart with errors */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 overflow-x-auto">
-        <div className="min-w-[600px]">
-          <div className="text-xs font-bold text-gray-500 mb-2">План-график ученика (с ошибками):</div>
-          <div className="space-y-1">
-            {content.errors.map((err, idx) => (
-              <div key={idx} onClick={() => !submitted && toggleError(idx)}
-                className={`p-2 rounded border-2 cursor-pointer text-xs transition-all ${foundErrors.has(idx) ? 'bg-orange-100 border-orange-400' : 'bg-white border-gray-200 hover:border-orange-200'}`}>
-                <span className="font-medium">Этап {idx + 1}:</span> {err.error}
-                {submitted && (
-                  <span className={`ml-2 ${foundErrors.has(idx) ? 'text-green-600' : 'text-red-600'}`}>
-                    {foundErrors.has(idx) ? '✓ Найдено' : '✗ Пропущено'}
-                  </span>
-                )}
-                {submitted && foundErrors.has(idx) && (
-                  <p className="mt-1 text-orange-700 bg-orange-50 p-1 rounded">💡 {err.explanation}</p>
-                )}
+      {/* Visual Gantt Chart */}
+      <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mb-4 overflow-x-auto">
+        <div className="min-w-[700px]">
+          {/* Week headers */}
+          <div className="flex border-b-2 border-gray-400 mb-2">
+            <div className="w-32 shrink-0 text-xs font-bold text-gray-600 p-1">Задача</div>
+            {Array.from({ length: totalWeeks }, (_, i) => (
+              <div key={i} className={`w-8 shrink-0 text-center text-[9px] p-0.5 ${milestones.find(m => m.week === i + 1) ? 'bg-red-100 font-bold text-red-600' : 'text-gray-500'}`}>
+                {i + 1}
               </div>
             ))}
           </div>
+
+          {/* Milestones row */}
+          <div className="flex border-b border-gray-300 mb-2">
+            <div className="w-32 shrink-0 text-xs font-bold text-red-600 p-1">⚑ Вехи</div>
+            {Array.from({ length: totalWeeks }, (_, i) => {
+              const milestone = milestones.find(m => m.week === i + 1);
+              return (
+                <div key={i} className={`w-8 shrink-0 text-center text-[9px] p-0.5 ${milestone ? 'bg-red-200 text-red-700 font-bold' : ''}`}>
+                  {milestone ? '⚑' : ''}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Task rows */}
+          {ganttTasks.map(task => (
+            <div key={task.id} className="flex border-b border-gray-200 items-center">
+              <div 
+                onClick={() => !submitted && toggleTask(task.id)}
+                className={`w-32 shrink-0 text-xs p-1 font-medium cursor-pointer transition-all ${
+                  clickedTasks.has(task.id) 
+                    ? (task.hasError ? 'bg-orange-200 border-2 border-orange-400' : 'bg-red-100 border-2 border-red-300')
+                    : 'hover:bg-gray-100'
+                }`}
+                title={task.name}
+              >
+                {task.name}
+              </div>
+              {Array.from({ length: totalWeeks }, (_, weekIdx) => {
+                const isInRange = weekIdx + 1 >= task.start && weekIdx + 1 < task.start + task.duration;
+                return (
+                  <div 
+                    key={weekIdx}
+                    onClick={() => !submitted && isInRange && toggleTask(task.id)}
+                    className={`w-8 h-8 shrink-0 border border-gray-100 ${isInRange ? 'cursor-pointer' : ''} transition-all ${
+                      clickedTasks.has(task.id) && isInRange
+                        ? (task.hasError ? 'ring-2 ring-orange-500' : 'ring-2 ring-red-500')
+                        : ''
+                    }`}
+                    style={isInRange ? { backgroundColor: task.color, opacity: 0.8 } : {}}
+                  />
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
 
-      <p className="text-sm text-gray-500 mb-2">Найдено ошибок: {foundErrors.size}/{content.errors.length}</p>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
+        💡 <strong>Подсказка:</strong> Проверяй: 1) Зависимости задач (теория после литературы), 2) Порядок (заключение после данных), 3) Буферы перед вехами (КП3, КП4), 4) Перегруз недель.
+      </div>
+
+      <p className="text-sm text-gray-600 mb-2">Отмечено задач с ошибками: {clickedTasks.size}</p>
 
       {!submitted ? (
         <button onClick={handleSubmit}
           className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
-          Проверить
+          Проверить ({clickedTasks.size} отмечено)
         </button>
       ) : (
-        <div className={`mt-4 p-4 rounded-lg ${score >= content.errors.length - 1 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-          <p className="font-semibold">{score >= content.errors.length - 1 ? content.explanation.correct : content.explanation.incorrect}</p>
-          <p className="text-sm mt-2">Найдено: {score}/{content.errors.length}</p>
+        <div className={`mt-4 p-4 rounded-lg ${score >= 3 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
+          <p className="font-semibold">{score >= 3 ? 'Отлично! Ты понимаешь принципы построения плана-графика: зависимости, буферы, равномерная загрузка, вехи, логический порядок.' : 'Не все ошибки найдены. Типичные ошибки плана: нарушение порядка, нет буферов, параллельные зависимые задачи, перегруз недель.'}</p>
+          <p className="text-sm mt-2">Найдено ошибок: {score}/{ganttTasks.filter(t => t.hasError).length}</p>
+          {answers.length > 0 && (
+            <details className="mt-2">
+              <summary className="text-sm text-orange-600 cursor-pointer">Показать все ошибки</summary>
+              <ul className="mt-2 text-xs space-y-1">
+                {answers.map((a: string, i: number) => <li key={i} className={a.startsWith('✓') ? 'text-green-700' : 'text-red-700'}>{a}</li>)}
+              </ul>
+            </details>
+          )}
         </div>
       )}
     </div>
