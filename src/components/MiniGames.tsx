@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { miniGameContent } from '../data/gameData';
 import { GanttTask } from '../types';
 
@@ -86,17 +86,6 @@ export function StructureAssemblyGame({ onComplete }: { onComplete: (score: numb
   });
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-
-  const handleDragStart = (idx: number) => setDragIdx(idx);
-  const handleDrop = (targetIdx: number) => {
-    if (dragIdx === null || dragIdx === targetIdx) return;
-    const newOrder = [...order];
-    const [removed] = newOrder.splice(dragIdx, 1);
-    newOrder.splice(targetIdx, 0, removed);
-    setOrder(newOrder);
-    setDragIdx(null);
-  };
 
   const moveItem = (idx: number, dir: -1 | 1) => {
     const newIdx = idx + dir;
@@ -112,7 +101,7 @@ export function StructureAssemblyGame({ onComplete }: { onComplete: (score: numb
     order.forEach((item, idx) => {
       const isCorrect = item === content.correctOrder[idx];
       if (isCorrect) correct++;
-      answers.push(`${idx + 1}. ${item} ${isCorrect ? '✓' : '✗ (должно быть: ' + content.correctOrder[idx] + ')'}`);
+      answers.push(`${idx + 1}. ${item} ${isCorrect ? '✓' : '✗'}`);
     });
     setScore(correct);
     setSubmitted(true);
@@ -125,14 +114,14 @@ export function StructureAssemblyGame({ onComplete }: { onComplete: (score: numb
       <p className="text-gray-600 mb-4">{content.description}</p>
       <div className="space-y-2">
         {order.map((item, idx) => (
-          <div key={item} draggable onDragStart={() => handleDragStart(idx)} onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(idx)}
-            className={`p-3 rounded-lg border-2 cursor-move transition-all flex items-center gap-2 ${submitted ? (item === content.correctOrder[idx] ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300') : 'bg-purple-50 border-purple-200 hover:border-purple-400'}`}>
+          <div key={item}
+            className={`p-3 rounded-lg border-2 transition-all flex items-center gap-2 ${submitted ? (item === content.correctOrder[idx] ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300') : 'bg-purple-50 border-purple-200'}`}>
             <span className="text-lg font-bold text-purple-400 w-8">{idx + 1}.</span>
             <span className="flex-1 text-sm font-medium">{item}</span>
             {!submitted && (
               <div className="flex flex-col gap-1">
-                <button onClick={() => moveItem(idx, -1)} disabled={idx === 0} className="text-xs px-1 bg-purple-200 rounded disabled:opacity-30">▲</button>
-                <button onClick={() => moveItem(idx, 1)} disabled={idx === order.length - 1} className="text-xs px-1 bg-purple-200 rounded disabled:opacity-30">▼</button>
+                <button onClick={() => moveItem(idx, -1)} disabled={idx === 0} className="text-xs px-2 py-1 bg-purple-200 rounded disabled:opacity-30 hover:bg-purple-300">▲</button>
+                <button onClick={() => moveItem(idx, 1)} disabled={idx === order.length - 1} className="text-xs px-2 py-1 bg-purple-200 rounded disabled:opacity-30 hover:bg-purple-300">▼</button>
               </div>
             )}
           </div>
@@ -158,7 +147,6 @@ export function IdeaFilterGame({ onComplete }: { onComplete: (score: number, max
   const [classifications, setClassifications] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
-  const [showReasons, setShowReasons] = useState<Record<number, boolean>>({});
 
   const handleClassify = (idx: number, classification: string) => {
     setClassifications(prev => ({ ...prev, [idx]: classification }));
@@ -169,12 +157,11 @@ export function IdeaFilterGame({ onComplete }: { onComplete: (score: number, max
     const answers: string[] = [];
     content.ideas.forEach((idea, idx) => {
       const cls = classifications[idx];
-      answers.push(`${idea.text}: ${cls || 'не определено'} → верно: ${idea.correct}`);
+      answers.push(`«${idea.text.substring(0, 40)}...»: ${cls || 'не определено'}`);
       if (cls === idea.correct) correct++;
     });
     setScore(correct);
     setSubmitted(true);
-    setShowReasons(Object.fromEntries(content.ideas.map((_, i) => [i, true])));
     onComplete(correct, content.ideas.length, answers);
   };
 
@@ -202,7 +189,7 @@ export function IdeaFilterGame({ onComplete }: { onComplete: (score: number, max
                 ))}
               </div>
             )}
-            {submitted && showReasons[idx] && (
+            {submitted && (
               <p className={`text-xs mt-2 p-2 rounded ${classifications[idx] === idea.correct ? 'bg-green-100' : 'bg-red-100'}`}>
                 💡 {idea.reason}
               </p>
@@ -274,50 +261,51 @@ export function SmartConstructorGame({ onComplete }: { onComplete: (score: numbe
   );
 }
 
-// ==================== MINI GAME: Task Tree ====================
+// ==================== MINI GAME: Task Tree (выбор правильных задач) ====================
 export function TaskTreeGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
   const content = miniGameContent.task_tree;
-  const [tasks, setTasks] = useState<string[]>(['', '', '', '']);
+  
+  // Все задачи: правильные + неправильные
+  const allTasks: { text: string; correct: boolean; reason?: string }[] = [
+    ...content.correctTasks.map(t => ({ text: t, correct: true as const })),
+    { text: 'Сделать буклет', correct: false, reason: 'Слишком общая — это цель, не задача' },
+    { text: 'Прочитать книги', correct: false, reason: 'Неточный глагол, неясно какие книги' },
+    { text: 'Сделать опрос и создать буклет', correct: false, reason: 'Два действия в одной задаче' },
+    { text: 'Подумать о проблеме', correct: false, reason: 'Нет глагола действия, неконкретно' },
+    { text: 'Всё подготовить', correct: false, reason: 'Слишком общая, нет конкретики' },
+  ].sort(() => Math.random() - 0.5);
+
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
 
-  const updateTask = (idx: number, value: string) => {
-    const newTasks = [...tasks];
-    newTasks[idx] = value;
-    setTasks(newTasks);
-  };
-
-  const addTask = () => {
-    if (tasks.length < 6) setTasks([...tasks, '']);
-  };
-
-  const removeTask = (idx: number) => {
-    if (tasks.length > 4) setTasks(tasks.filter((_, i) => i !== idx));
+  const toggle = (idx: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
   };
 
   const handleSubmit = () => {
-    const filledTasks = tasks.filter(t => t.trim().length > 0);
     let correct = 0;
     const answers: string[] = [];
     
-    // Check each task
-    filledTasks.forEach((task, idx) => {
-      const startsWithVerb = /^(изучить|провести|разработать|создать|протестировать|оформить|проанализировать|выявить|составить|подготовить|написать|сделать)/i.test(task);
-      const notTooGeneral = task.length > 15;
-      const isSingle = !task.includes(' и ') || task.split(' и ').length <= 2;
-      
-      if (startsWithVerb && notTooGeneral) correct += 0.5;
-      if (isSingle) correct += 0.25;
-      answers.push(`${idx + 1}. ${task} ${startsWithVerb ? '✓ глагол' : '✗ нет глагола'} ${notTooGeneral ? '✓ конкретно' : '✗ слишком общо'}`);
+    allTasks.forEach((task, idx) => {
+      const isSelected = selected.has(idx);
+      if (task.correct && isSelected) { correct++; answers.push(`✓ ${task.text}`); }
+      else if (task.correct && !isSelected) { answers.push(`✗ Пропущена: ${task.text}`); }
+      else if (!task.correct && isSelected) { answers.push(`✗ Лишняя: ${task.text} — ${task.reason}`); }
+      else { answers.push(`○ Верно пропущена: ${task.text}`); }
     });
 
-    // Bonus for correct count
-    if (filledTasks.length >= 4 && filledTasks.length <= 6) correct += 0.5;
+    // Bonus for correct count (4-6)
+    if (selected.size >= 4 && selected.size <= 6) correct += 0;
     
-    const finalScore = Math.min(Math.round(correct), content.correctTasks.length);
-    setScore(finalScore);
+    setScore(correct);
     setSubmitted(true);
-    onComplete(finalScore, content.correctTasks.length, answers);
+    onComplete(correct, content.correctTasks.length, answers);
   };
 
   return (
@@ -327,50 +315,58 @@ export function TaskTreeGame({ onComplete }: { onComplete: (score: number, max: 
       <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 mb-4">
         <p className="text-sm font-medium text-teal-700">🎯 Цель: «{content.goal}»</p>
       </div>
+      <p className="text-xs text-gray-500 mb-3">Отметь только правильные задачи (4–6 штук). Каждая должна начинаться с глагола действия и быть конкретным шагом.</p>
       <div className="space-y-2">
-        {tasks.map((task, idx) => (
-          <div key={idx} className="flex gap-2 items-center">
-            <span className="text-teal-400 font-bold w-6">{idx + 1}.</span>
-            <input type="text" value={task} onChange={e => updateTask(idx, e.target.value)}
-              placeholder="Начните с глагола: изучить, провести, разработать..."
-              className="flex-1 p-2 border-2 border-teal-200 rounded-lg text-sm focus:border-teal-400 focus:outline-none"
-              disabled={submitted} />
-            {!submitted && tasks.length > 4 && (
-              <button onClick={() => removeTask(idx)} className="text-red-400 hover:text-red-600 text-lg">×</button>
+        {allTasks.map((task, idx) => (
+          <div key={idx} onClick={() => !submitted && toggle(idx)}
+            className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-3 ${
+              submitted 
+                ? (task.correct 
+                    ? (selected.has(idx) ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300')
+                    : (selected.has(idx) ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'))
+                : (selected.has(idx) ? 'bg-teal-50 border-teal-300' : 'bg-gray-50 border-gray-200 hover:border-teal-200')
+            }`}>
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${selected.has(idx) ? 'bg-teal-500 border-teal-500 text-white' : 'border-gray-300'}`}>
+              {selected.has(idx) && '✓'}
+            </div>
+            <span className="text-sm flex-1">{task.text}</span>
+            {submitted && !task.correct && selected.has(idx) && task.reason && (
+              <span className="text-xs text-red-600">💡 {task.reason}</span>
             )}
           </div>
         ))}
       </div>
-      {!submitted && tasks.length < 6 && (
-        <button onClick={addTask} className="mt-2 text-sm text-teal-600 hover:text-teal-800">+ Добавить задачу</button>
-      )}
+      <p className="text-xs text-gray-400 mt-2">Выбрано: {selected.size}</p>
       {!submitted ? (
-        <button onClick={handleSubmit} disabled={tasks.filter(t => t.trim()).length < 4}
+        <button onClick={handleSubmit} disabled={selected.size < 4}
           className="mt-4 px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
-          Проверить ({tasks.filter(t => t.trim()).length} задач)
+          Проверить ({selected.size} выбрано)
         </button>
       ) : (
         <div className={`mt-4 p-4 rounded-lg ${score >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
           <p className="font-semibold">{score >= 4 ? content.explanation.correct : content.explanation.incorrect}</p>
-          <p className="text-sm mt-2">Результат: {score}/{content.correctTasks.length}</p>
-          <details className="mt-2">
-            <summary className="text-sm text-teal-600 cursor-pointer">Показать эталон</summary>
-            <ol className="mt-2 text-sm space-y-1">
-              {content.correctTasks.map((t, i) => <li key={i} className="text-gray-700">{i + 1}. {t}</li>)}
-            </ol>
-          </details>
+          <p className="text-sm mt-2">Правильных задач выбрано: {score}/{content.correctTasks.length}</p>
         </div>
       )}
     </div>
   );
 }
 
-// ==================== MINI GAME: Object, Subject, Hypothesis ====================
+// ==================== MINI GAME: Object, Subject, Hypothesis (выбор из вариантов) ====================
 export function ObjectSubjectHypothesisGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
   const content = miniGameContent.object_subject_hypothesis;
+  
+  // Варианты гипотезы для выбора
+  const hypothesisOptions: { text: string; correct: boolean; reason?: string }[] = [
+    { text: 'Если разработать буклет с визуальными инструкциями по сортировке отходов для 5–6 классов, то уровень знаний о правилах сортировки повысится минимум на 30%, потому что наглядная визуальная информация усваивается подростками лучше, чем текстовая.', correct: true },
+    { text: 'Если сделать буклет, то всё будет хорошо.', correct: false, reason: 'Нет конкретики, нет обоснования' },
+    { text: 'Буклет поможет ученикам.', correct: false, reason: 'Это не гипотеза, а утверждение. Нет формулы «Если…то…потому что…»' },
+    { text: 'Если ученики будут читать буклет, то они станут экологически грамотными, потому что буклеты полезные.', correct: false, reason: 'Слишком общее обоснование, нет измеримого результата' },
+  ];
+
   const [selectedObject, setSelectedObject] = useState<number | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
-  const [hypothesisParts, setHypothesisParts] = useState({ if: '', then: '', because: '' });
+  const [selectedHypothesis, setSelectedHypothesis] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
 
@@ -378,18 +374,15 @@ export function ObjectSubjectHypothesisGame({ onComplete }: { onComplete: (score
     let correct = 0;
     const answers: string[] = [];
     
-    if (selectedObject !== null && content.objectOptions[selectedObject].correct) correct++;
-    answers.push(`Объект: ${selectedObject !== null ? content.objectOptions[selectedObject].text : 'не выбран'} ${selectedObject !== null && content.objectOptions[selectedObject].correct ? '✓' : '✗'}`);
+    if (selectedObject !== null && content.objectOptions[selectedObject].correct) { correct++; answers.push('Объект: ✓'); }
+    else answers.push('Объект: ✗');
     
-    if (selectedSubject !== null && content.subjectOptions[selectedSubject].correct) correct++;
-    answers.push(`Предмет: ${selectedSubject !== null ? content.subjectOptions[selectedSubject].text : 'не выбран'} ${selectedSubject !== null && content.subjectOptions[selectedSubject].correct ? '✓' : '✗'}`);
+    if (selectedSubject !== null && content.subjectOptions[selectedSubject].correct) { correct++; answers.push('Предмет: ✓'); }
+    else answers.push('Предмет: ✗');
     
-    // Check hypothesis
-    const ifCorrect = hypothesisParts.if.length > 20;
-    const thenCorrect = hypothesisParts.then.length > 10;
-    const becauseCorrect = hypothesisParts.because.length > 10;
-    if (ifCorrect && thenCorrect && becauseCorrect) correct++;
-      answers.push('Гипотеза: Если...' + (ifCorrect ? '✓' : '✗') + ' То...' + (thenCorrect ? '✓' : '✗') + ' Потому что...' + (becauseCorrect ? '✓' : '✗'));
+    if (selectedHypothesis !== null && hypothesisOptions[selectedHypothesis].correct) { correct++; answers.push('Гипотеза: ✓'); }
+    else answers.push('Гипотеза: ✗');
+
     setScore(correct);
     setSubmitted(true);
     onComplete(correct, 3, answers);
@@ -425,55 +418,42 @@ export function ObjectSubjectHypothesisGame({ onComplete }: { onComplete: (score
       </div>
 
       <div className="mb-4">
-        <h4 className="font-semibold text-amber-700 mb-2">3. Собери гипотезу «Если… то… потому что…»:</h4>
+        <h4 className="font-semibold text-amber-700 mb-2">3. Выбери правильную гипотезу:</h4>
         <div className="space-y-2">
-          <div className="flex gap-2 items-start">
-            <span className="text-amber-600 font-bold shrink-0">Если…</span>
-            <textarea value={hypothesisParts.if} onChange={e => setHypothesisParts(p => ({ ...p, if: e.target.value }))}
-              placeholder="Что делаем?" className="flex-1 p-2 border-2 border-amber-200 rounded-lg text-sm" rows={2} disabled={submitted} />
-          </div>
-          <div className="flex gap-2 items-start">
-            <span className="text-amber-600 font-bold shrink-0">То…</span>
-            <textarea value={hypothesisParts.then} onChange={e => setHypothesisParts(p => ({ ...p, then: e.target.value }))}
-              placeholder="Какой результат?" className="flex-1 p-2 border-2 border-amber-200 rounded-lg text-sm" rows={2} disabled={submitted} />
-          </div>
-          <div className="flex gap-2 items-start">
-            <span className="text-amber-600 font-bold shrink-0">Потому что…</span>
-            <textarea value={hypothesisParts.because} onChange={e => setHypothesisParts(p => ({ ...p, because: e.target.value }))}
-              placeholder="Почему так произойдёт?" className="flex-1 p-2 border-2 border-amber-200 rounded-lg text-sm" rows={2} disabled={submitted} />
-          </div>
+          {hypothesisOptions.map((opt, idx) => (
+            <div key={idx} onClick={() => !submitted && setSelectedHypothesis(idx)}
+              className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${submitted ? (opt.correct ? 'bg-green-50 border-green-300' : selectedHypothesis === idx ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200') : selectedHypothesis === idx ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200 hover:border-amber-200'}`}>
+              <p className="text-sm">{opt.text}</p>
+              {submitted && !opt.correct && selectedHypothesis === idx && opt.reason && (
+                <p className="text-xs mt-1 text-red-600">💡 {opt.reason}</p>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
       {!submitted ? (
         <button onClick={handleSubmit}
-          className="mt-4 px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700">
+          disabled={selectedObject === null || selectedSubject === null || selectedHypothesis === null}
+          className="mt-4 px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">
           Проверить
         </button>
       ) : (
         <div className={`mt-4 p-4 rounded-lg ${score === 3 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
           <p className="font-semibold">{score === 3 ? content.explanation.correct : content.explanation.incorrect}</p>
           <p className="text-sm mt-2">Результат: {score}/3</p>
-          <details className="mt-2">
-            <summary className="text-sm text-amber-600 cursor-pointer">Показать эталон</summary>
-            <div className="mt-2 text-sm bg-amber-50 p-3 rounded">
-              <p><strong>Объект:</strong> {content.objectOptions.find(o => o.correct)?.text}</p>
-              <p><strong>Предмет:</strong> {content.subjectOptions.find(o => o.correct)?.text}</p>
-              <p><strong>Гипотеза:</strong> {content.hypothesisParts.if} {content.hypothesisParts.then} {content.hypothesisParts.because}</p>
-            </div>
-          </details>
         </div>
       )}
     </div>
   );
 }
 
-// ==================== MINI GAME: Defense Presentation ====================
+// ==================== MINI GAME: Defense Presentation (выбор ответов) ====================
 export function DefensePresentationGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
   const content = miniGameContent.defense_presentation;
   const [chainOrder, setChainOrder] = useState<number[]>(() => [0, 1, 2, 3].sort(() => Math.random() - 0.5));
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [questionAnswers, setQuestionAnswers] = useState<string[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<number[]>([]);
   const [phase, setPhase] = useState<'chain' | 'questions' | 'result'>('chain');
   const [score, setScore] = useState(0);
 
@@ -498,20 +478,41 @@ export function DefensePresentationGame({ onComplete }: { onComplete: (score: nu
     setPhase('questions');
   };
 
-  const submitQuestionAnswer = (answer: string) => {
-    const newAnswers = [...questionAnswers, answer];
+  // Варианты ответов на вопросы консультанта
+  const questionOptions = [
+    [
+      { text: 'Буклет доступен, не требует техники, ученики могут перечитывать. Опрос показал, что 70% предпочитают печатные материалы.', correct: true },
+      { text: 'Ну, буклет — это просто и недорого.', correct: false },
+      { text: 'Потому что все делают буклеты.', correct: false },
+    ],
+    [
+      { text: 'Тестирование до и после: один и тот же тест из 10 вопросов. Сравнение средних баллов.', correct: true },
+      { text: 'Спросим у учителей, заметили ли они изменения.', correct: false },
+      { text: 'Посмотрим, стали ли ученики лучше сортировать мусор.', correct: false },
+    ],
+    [
+      { text: 'Да: опрос — сентябрь, разработка — октябрь-ноябрь, создание — декабрь-февраль, тестирование — март, оформление — апрель. Есть буфер.', correct: true },
+      { text: 'Думаю, успеем, если постараемся.', correct: false },
+      { text: 'Ну, план есть, а там посмотрим.', correct: false },
+    ],
+  ];
+
+  const submitQuestionAnswer = (optIdx: number) => {
+    const newAnswers = [...questionAnswers, optIdx];
     setQuestionAnswers(newAnswers);
+    
     if (currentQuestion < content.consultantQuestions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
       // Calculate final score
       let qScore = 0;
-      newAnswers.forEach(a => {
-        if (a.length > 30) qScore += 0.5;
+      newAnswers.forEach((ansIdx, qIdx) => {
+        if (questionOptions[qIdx][ansIdx].correct) qScore++;
       });
-      setScore(prev => Math.min(prev + Math.round(qScore), 5));
+      const finalScore = Math.min(score + qScore, 5);
+      setScore(finalScore);
       setPhase('result');
-      onComplete(Math.min(Math.round(score + qScore), 5), 5, [...questionAnswers, answer]);
+      onComplete(finalScore, 5, newAnswers.map((a, i) => questionOptions[i][a].text));
     }
   };
 
@@ -526,8 +527,8 @@ export function DefensePresentationGame({ onComplete }: { onComplete: (score: nu
               <span className="text-rose-400 font-bold">{pos + 1}.</span>
               <span className="flex-1 text-sm">{content.chainParts[partIdx].text}</span>
               <div className="flex flex-col gap-1">
-                <button onClick={() => moveChainItem(pos, -1)} disabled={pos === 0} className="text-xs px-1 bg-rose-200 rounded disabled:opacity-30">▲</button>
-                <button onClick={() => moveChainItem(pos, 1)} disabled={pos === chainOrder.length - 1} className="text-xs px-1 bg-rose-200 rounded disabled:opacity-30">▼</button>
+                <button onClick={() => moveChainItem(pos, -1)} disabled={pos === 0} className="text-xs px-2 py-1 bg-rose-200 rounded disabled:opacity-30 hover:bg-rose-300">▲</button>
+                <button onClick={() => moveChainItem(pos, 1)} disabled={pos === chainOrder.length - 1} className="text-xs px-2 py-1 bg-rose-200 rounded disabled:opacity-30 hover:bg-rose-300">▼</button>
               </div>
             </div>
           ))}
@@ -541,20 +542,21 @@ export function DefensePresentationGame({ onComplete }: { onComplete: (score: nu
 
   if (phase === 'questions') {
     const q = content.consultantQuestions[currentQuestion];
+    const options = questionOptions[currentQuestion];
     return (
       <div className="bg-white rounded-xl shadow-lg p-6 border border-rose-100">
         <h3 className="text-xl font-bold text-rose-800 mb-2">Вопросы консультанта ({currentQuestion + 1}/{content.consultantQuestions.length})</h3>
         <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 mb-4">
           <p className="font-medium">💬 {q.question}</p>
         </div>
-        <textarea id="defense-answer" className="w-full p-3 border-2 border-rose-200 rounded-lg text-sm" rows={4}
-          placeholder="Ваш ответ консультанту..." />
-        <button onClick={() => {
-          const el = document.getElementById('defense-answer') as HTMLTextAreaElement;
-          submitQuestionAnswer(el?.value || '');
-        }} className="mt-4 px-6 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700">
-          {currentQuestion < content.consultantQuestions.length - 1 ? 'Ответить →' : 'Завершить защиту'}
-        </button>
+        <div className="space-y-2">
+          {options.map((opt, idx) => (
+            <div key={idx} onClick={() => submitQuestionAnswer(idx)}
+              className="p-3 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-rose-300 hover:bg-rose-50 transition-all">
+              <p className="text-sm">{opt.text}</p>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -608,7 +610,6 @@ export function GanttBuilderGame({ onComplete, onPlanUpdate }: { onComplete: (sc
 
     onPlanUpdate(plan);
     
-    // Bonus for milestones
     const finalScore = Math.min(correct + 1, content.tasks.length + 1);
     setScore(finalScore);
     setSubmitted(true);
@@ -652,13 +653,12 @@ export function GanttBuilderGame({ onComplete, onPlanUpdate }: { onComplete: (sc
               <div className="w-40 shrink-0 text-xs p-1 font-medium truncate" title={task.name}>{task.name}</div>
               {Array.from({ length: totalWeeks }, (_, weekIdx) => {
                 const start = taskPlacements[idx];
-                const isStart = start === weekIdx + 1;
                 const isInRange = start !== undefined && weekIdx + 1 >= start && weekIdx + 1 < start + task.duration;
                 return (
                   <div key={weekIdx} onClick={() => !submitted && handlePlace(idx, weekIdx + 1)}
                     className={`w-6 h-6 shrink-0 cursor-pointer border border-gray-100 transition-all ${isInRange ? '' : 'hover:bg-cyan-50'}`}
-                    style={isInRange ? { backgroundColor: colors[idx % colors.length], opacity: 0.8 } : isStart ? { backgroundColor: colors[idx % colors.length] } : {}}>
-                    {isStart && <span className="text-[8px] text-white font-bold flex items-center justify-center h-full">{task.duration}н</span>}
+                    style={isInRange ? { backgroundColor: colors[idx % colors.length], opacity: 0.8 } : {}}>
+                    {weekIdx + 1 === start && <span className="text-[8px] text-white font-bold flex items-center justify-center h-full">{task.duration}н</span>}
                   </div>
                 );
               })}
@@ -808,7 +808,7 @@ export function ReadinessChecklistGame({ onComplete }: { onComplete: (score: num
       const isChecked = checked.has(item.id);
       const shouldCheck = item.category === 'must';
       if (isChecked === shouldCheck) correct++;
-      answers.push(item.text + ': ' + (isChecked ? '✓' : '✗') + ' (должно быть: ' + (shouldCheck ? '✓' : '✗') + ')');
+      answers.push(`${item.text}: ${isChecked ? '✓' : '✗'} (должно быть: ${shouldCheck ? '✓' : '✗'})`);
     });
     setScore(correct);
     setSubmitted(true);
@@ -849,149 +849,194 @@ export function ReadinessChecklistGame({ onComplete }: { onComplete: (score: num
   );
 }
 
-// ==================== MINI GAME: Passport Draft ====================
+// ==================== MINI GAME: Passport Draft (выбор из вариантов) ====================
 export function PassportDraftGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
-  const [fields, setFields] = useState({
-    theme: '',
-    problem: '',
-    goal: '',
-    product: '',
-    domain: '',
-  });
+  const fields = {
+    theme: {
+      label: 'Тема проекта:',
+      options: [
+        { text: 'Экология', correct: false, reason: 'Слишком общая — это направление, не тема' },
+        { text: 'Разработка буклета по сортировке отходов для учеников 5–6 классов', correct: true, reason: '' },
+        { text: 'Мусор', correct: false, reason: 'Это одно слово, не тема проекта' },
+      ]
+    },
+    problem: {
+      label: 'Проблема (противоречие/вопрос):',
+      options: [
+        { text: 'В школе много мусора', correct: false, reason: 'Это констатация факта, а не проблема' },
+        { text: 'Ученики 5–6 классов не знают правил сортировки отходов, хотя в школе введён раздельный сбор', correct: true, reason: '' },
+        { text: 'Проблема экологии', correct: false, reason: 'Слишком общая, нет конкретики' },
+      ]
+    },
+    goal: {
+      label: 'Цель:',
+      options: [
+        { text: 'Улучшить экологическую ситуацию', correct: false, reason: 'Расплывчато, нет глагола действия' },
+        { text: 'Разработать буклет, повышающий знания о сортировке отходов на 30% к маю 2025 г.', correct: true, reason: '' },
+        { text: 'Изучить проблему мусора', correct: false, reason: 'Это не цель, а направление. Нет продукта и сроков' },
+      ]
+    },
+    product: {
+      label: 'Продукт:',
+      options: [
+        { text: 'Что-нибудь полезное', correct: false, reason: 'Неконкретно' },
+        { text: 'Буклет из 8 страниц с визуальными инструкциями по сортировке отходов', correct: true, reason: '' },
+        { text: 'Исследование', correct: false, reason: 'Это вид работы, не продукт' },
+      ]
+    },
+    domain: {
+      label: 'Предметная область:',
+      options: [
+        { text: 'Всё на свете', correct: false, reason: 'Не определена' },
+        { text: 'Экология / экологическое просвещение', correct: true, reason: '' },
+        { text: 'Школа', correct: false, reason: 'Это место, не предметная область' },
+      ]
+    },
+  };
+
+  const [selections, setSelections] = useState<Record<string, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
 
-  const updateField = (key: string, value: string) => {
-    setFields(prev => ({ ...prev, [key]: value }));
+  const handleSelect = (field: string, optIdx: number) => {
+    setSelections(prev => ({ ...prev, [field]: optIdx }));
   };
 
   const handleSubmit = () => {
     let correct = 0;
     const answers: string[] = [];
     
-    // Theme: should be specific
-    if (fields.theme.length > 10) { correct++; answers.push('Тема: ✓ конкретная'); }
-    else answers.push('Тема: ✗ слишком краткая');
-    
-    // Problem: should contain question or contradiction
-    if (fields.problem.length > 15 && (fields.problem.includes('?') || fields.problem.includes('но') || fields.problem.includes('однако') || fields.problem.includes('не'))) { correct++; answers.push('Проблема: ✓ содержит противоречие/вопрос'); }
-    else answers.push('Проблема: ✗ нет противоречия или вопроса');
-    
-    // Goal: should start with verb
-    if (/^(разработать|выявить|создать|доказать|исследовать|определить|составить|подготовить)/i.test(fields.goal)) { correct++; answers.push('Цель: ✓ начинается с глагола'); }
-    else answers.push('Цель: ✗ не начинается с глагола действия');
-    
-    // Product: should be concrete
-    if (fields.product.length > 5) { correct++; answers.push('Продукт: ✓ указан'); }
-    else answers.push('Продукт: ✗ не указан');
-    
-    // Domain: should be filled
-    if (fields.domain.length > 3) { correct++; answers.push('Область: ✓ указана'); }
-    else answers.push('Область: ✗ не указана');
+    Object.entries(fields).forEach(([key, field]) => {
+      const selIdx = selections[key];
+      const opt = field.options[selIdx];
+      if (opt && opt.correct) { correct++; answers.push(`${field.label} ✓`); }
+      else { answers.push(`${field.label} ✗`); }
+    });
 
     setScore(correct);
     setSubmitted(true);
-    onComplete(correct, 5, answers);
+    onComplete(correct, Object.keys(fields).length, answers);
   };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-sky-100">
       <h3 className="text-xl font-bold text-sky-800 mb-2">Черновик паспорта проекта</h3>
-      <p className="text-gray-600 mb-4">Заполни основные поля паспорта. Не бойся ошибиться — будем дорабатывать!</p>
-      <div className="space-y-3">
-        <div>
-          <label className="text-sm font-semibold text-sky-700">Тема проекта:</label>
-          <input type="text" value={fields.theme} onChange={e => updateField('theme', e.target.value)}
-            className="w-full p-2 border-2 border-sky-200 rounded-lg text-sm mt-1" placeholder="Например: Разработка буклета по..." disabled={submitted} />
-        </div>
-        <div>
-          <label className="text-sm font-semibold text-sky-700">Проблема (противоречие/вопрос):</label>
-          <textarea value={fields.problem} onChange={e => updateField('problem', e.target.value)}
-            className="w-full p-2 border-2 border-sky-200 rounded-lg text-sm mt-1" rows={2} placeholder="Что не так? Какое противоречие?" disabled={submitted} />
-        </div>
-        <div>
-          <label className="text-sm font-semibold text-sky-700">Цель (глагол действия):</label>
-          <input type="text" value={fields.goal} onChange={e => updateField('goal', e.target.value)}
-            className="w-full p-2 border-2 border-sky-200 rounded-lg text-sm mt-1" placeholder="Разработать/Выявить/Создать..." disabled={submitted} />
-        </div>
-        <div>
-          <label className="text-sm font-semibold text-sky-700">Продукт:</label>
-          <input type="text" value={fields.product} onChange={e => updateField('product', e.target.value)}
-            className="w-full p-2 border-2 border-sky-200 rounded-lg text-sm mt-1" placeholder="Буклет, сайт, исследование..." disabled={submitted} />
-        </div>
-        <div>
-          <label className="text-sm font-semibold text-sky-700">Предметная область:</label>
-          <input type="text" value={fields.domain} onChange={e => updateField('domain', e.target.value)}
-            className="w-full p-2 border-2 border-sky-200 rounded-lg text-sm mt-1" placeholder="Экология, история, информатика..." disabled={submitted} />
-        </div>
+      <p className="text-gray-600 mb-4">Выбери правильную формулировку для каждого поля паспорта.</p>
+      <div className="space-y-4">
+        {Object.entries(fields).map(([key, field]) => (
+          <div key={key}>
+            <label className="text-sm font-semibold text-sky-700">{field.label}</label>
+            <div className="space-y-1 mt-1">
+              {field.options.map((opt, idx) => (
+                <div key={idx} onClick={() => !submitted && handleSelect(key, idx)}
+                  className={`p-2 rounded-lg border-2 cursor-pointer text-sm transition-all ${
+                    submitted 
+                      ? (opt.correct ? 'bg-green-50 border-green-300' : selections[key] === idx ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200')
+                      : (selections[key] === idx ? 'bg-sky-50 border-sky-300' : 'bg-gray-50 border-gray-200 hover:border-sky-200')
+                  }`}>
+                  <span>{opt.text}</span>
+                  {submitted && !opt.correct && selections[key] === idx && opt.reason && (
+                    <span className="text-xs ml-2 text-red-600">💡 {opt.reason}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
       {!submitted ? (
-        <button onClick={handleSubmit} className="mt-4 px-6 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700">
+        <button onClick={handleSubmit} disabled={Object.keys(selections).length < Object.keys(fields).length}
+          className="mt-4 px-6 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50">
           Проверить паспорт
         </button>
       ) : (
         <div className={`mt-4 p-4 rounded-lg ${score >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-          <p className="font-semibold">{score >= 4 ? 'Хороший черновик! Паспорт содержит все основные элементы. Будем уточнять на следующих уроках.' : 'Есть пробелы. Паспорт должен содержать: конкретную тему, проблему как противоречие, цель с глаголом действия, продукт и предметную область.'}</p>
-          <p className="text-sm mt-2">Заполнено: {score}/5</p>
+          <p className="font-semibold">{score >= 4 ? 'Хороший черновик! Паспорт содержит все основные элементы.' : 'Есть пробелы. Паспорт должен содержать: конкретную тему, проблему как противоречие, цель с глаголом действия, продукт и предметную область.'}</p>
+          <p className="text-sm mt-2">Заполнено правильно: {score}/{Object.keys(fields).length}</p>
         </div>
       )}
     </div>
   );
 }
 
-// ==================== MINI GAME: Relevance Text ====================
+// ==================== MINI GAME: Relevance Text (выбор аргументов) ====================
 export function RelevanceTextGame({ onComplete }: { onComplete: (score: number, max: number, answers: string[]) => void }) {
-  const [text, setText] = useState('');
+  const arguments_list = [
+    { text: 'Проблема отходов актуальна для всей планеты: ежегодно образуется более 2 млрд тонн мусора', correct: true, type: 'importance' },
+    { text: 'Мусор — это плохо', correct: false, type: 'importance', reason: 'Слишком общее утверждение, нет аргумента' },
+    { text: 'В нашей школе с сентября введён раздельный сбор, но 70% учеников не знают правил сортировки', correct: true, type: 'now' },
+    { text: 'Все говорят об экологии', correct: false, type: 'now', reason: 'Не объясняет, почему актуально именно сейчас и здесь' },
+    { text: 'Недавний опрос показал: только 15% пятиклассников правильно сортируют отходы', correct: true, type: 'now' },
+    { text: 'Экология важна', correct: false, type: 'importance', reason: 'Констатация, не аргумент' },
+    { text: 'Результаты можно использовать классными руководителями для просветительской работы', correct: true, type: 'practice' },
+    { text: 'Это будет полезно', correct: false, type: 'practice', reason: 'Неконкретно: кто, как, когда?' },
+    { text: 'Буклет могут применять в 5–6 классах ежегодно, обновляя данные', correct: true, type: 'practice' },
+    { text: 'Все должны заботиться о природе', correct: false, type: 'importance', reason: 'Лозунг, не аргумент актуальности' },
+  ];
+
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
 
+  const toggle = (idx: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
   const handleSubmit = () => {
-    const words = text.split(/\s+/).filter(w => w.length > 0);
     let correct = 0;
     const answers: string[] = [];
     
-    // Length check (~half page = 100-200 words)
-    if (words.length >= 50) { correct++; answers.push('✓ Объём достаточный'); }
-    else answers.push(`✗ Слишком кратко (${words.length} слов, нужно ~100-200)`);
-    
-    // Has arguments
-    const hasArgument = /важно|необходимо|проблема|актуальн|значим|потребност|нерешён/i.test(text);
-    if (hasArgument) { correct++; answers.push('✓ Содержит аргументы значимости'); }
-    else answers.push('✗ Нет аргументов значимости');
-    
-    // Has "why now"
-    const hasNow = /сейчас|в настоящее|сегодня|недавно|последн|изменен|нов/i.test(text);
-    if (hasNow) { correct++; answers.push('✓ Обоснована актуальность именно сейчас'); }
-    else answers.push('✗ Не объяснено, почему актуально именно сейчас');
-    
-    // Has practical significance
-    const hasPractice = /могут использовать|применить|практическ|польза|поможет/i.test(text);
-    if (hasPractice) { correct++; answers.push('✓ Указана практическая значимость'); }
-    else answers.push('✗ Не указана практическая значимость');
+    arguments_list.forEach((arg, idx) => {
+      const isSelected = selected.has(idx);
+      if (arg.correct && isSelected) { correct++; answers.push(`✓ ${arg.text.substring(0, 50)}...`); }
+      else if (arg.correct && !isSelected) { answers.push(`✗ Пропущен: ${arg.text.substring(0, 50)}...`); }
+      else if (!arg.correct && isSelected) { answers.push(`✗ Лишний: ${arg.text.substring(0, 50)}... — ${arg.reason}`); }
+    });
 
     setScore(correct);
     setSubmitted(true);
-    onComplete(correct, 4, answers);
+    onComplete(correct, arguments_list.filter(a => a.correct).length, answers);
   };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-lime-100">
-      <h3 className="text-xl font-bold text-lime-800 mb-2">Текст «Актуальность»</h3>
-      <p className="text-gray-600 mb-4">Напиши текст актуальности (~половина страницы, 100-200 слов). Обоснуй: почему тема важна, почему сейчас, кто будет использовать результат.</p>
-      <textarea value={text} onChange={e => setText(e.target.value)}
-        className="w-full p-3 border-2 border-lime-200 rounded-lg text-sm" rows={8}
-        placeholder="Экологическая проблема отходов в нашей школе актуальна потому что... В настоящее время... Результаты могут быть использованы..."
-        disabled={submitted} />
-      <p className="text-xs text-gray-400 mt-1">Слов: {text.split(/\s+/).filter(w => w.length > 0).length}</p>
+      <h3 className="text-xl font-bold text-lime-800 mb-2">Аргументы актуальности</h3>
+      <p className="text-gray-600 mb-4">Выбери только настоящие аргументы для текста «Актуальность». Хороший аргумент — конкретный, с данными, объясняет «почему важно», «почему сейчас», «кто использует».</p>
+      <div className="space-y-2">
+        {arguments_list.map((arg, idx) => (
+          <div key={idx} onClick={() => !submitted && toggle(idx)}
+            className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-3 ${
+              submitted 
+                ? (arg.correct 
+                    ? (selected.has(idx) ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300')
+                    : (selected.has(idx) ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'))
+                : (selected.has(idx) ? 'bg-lime-50 border-lime-300' : 'bg-gray-50 border-gray-200 hover:border-lime-200')
+            }`}>
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${selected.has(idx) ? 'bg-lime-500 border-lime-500 text-white' : 'border-gray-300'}`}>
+              {selected.has(idx) && '✓'}
+            </div>
+            <span className="text-sm flex-1">{arg.text}</span>
+            {submitted && !arg.correct && selected.has(idx) && (
+              <span className="text-xs text-red-600 shrink-0">💡 {arg.reason}</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 mt-2">Выбрано: {selected.size} (правильных: {arguments_list.filter(a => a.correct).length})</p>
       {!submitted ? (
-        <button onClick={handleSubmit} disabled={text.split(/\s+/).filter(w => w.length > 0).length < 20}
+        <button onClick={handleSubmit} disabled={selected.size < 3}
           className="mt-4 px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50">
-          Проверить текст
+          Проверить ({selected.size} выбрано)
         </button>
       ) : (
-        <div className={`mt-4 p-4 rounded-lg ${score >= 3 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-          <p className="font-semibold">{score >= 3 ? 'Хороший текст актуальности! Содержит аргументы, обоснование и практическую значимость.' : 'Текст нуждается в доработке. Актуальность должна содержать: 1) Почему проблема важна в принципе. 2) Почему именно сейчас. 3) Кто будет использовать результат.'}</p>
-          <p className="text-sm mt-2">Баллы: {score}/4</p>
+        <div className={`mt-4 p-4 rounded-lg ${score >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
+          <p className="font-semibold">{score >= 4 ? 'Хороший набор аргументов! Текст актуальности содержит обоснование важности, связь с текущей ситуацией и практическую значимость.' : 'Текст актуальности должен содержать: 1) Почему проблема важна в принципе (с данными). 2) Почему именно сейчас (конкретика). 3) Кто будет использовать результат.'}</p>
+          <p className="text-sm mt-2">Правильных аргументов: {score}/{arguments_list.filter(a => a.correct).length}</p>
         </div>
       )}
     </div>
