@@ -266,21 +266,19 @@ export function TaskTreeGame({ onComplete }: { onComplete: (score: number, max: 
   const content = miniGameContent.task_tree;
   
   // Все задачи: правильные + неправильные (более сложные)
-  const allTasks: { text: string; correct: boolean; reason?: string }[] = [
-    ...content.correctTasks.map(t => ({ text: t, correct: true as const })),
-    { text: 'Сделать буклет', correct: false, reason: 'Слишком общая — это цель, не задача' },
-    { text: 'Провести исследование', correct: false, reason: 'Слишком общая, не конкретизировано что исследовать' },
-    { text: 'Изучить литературу и провести опрос', correct: false, reason: 'Два действия в одной задаче' },
-    { text: 'Подготовить презентацию', correct: false, reason: 'Это не шаг к цели, а финальное оформление' },
-    { text: 'Собрать данные', correct: false, reason: 'Неясно какие данные и как' },
-  ];
-  
-  // Стабильная сортировка: правильные задачи в начале, потом неправильные
-  const correctTasks = allTasks.filter(t => t.correct);
-  const wrongTasks = allTasks.filter(t => !t.correct);
-  const shuffledCorrect = correctTasks.sort(() => Math.random() - 0.5);
-  const shuffledWrong = wrongTasks.sort(() => Math.random() - 0.5);
-  const mixedTasks = [...shuffledCorrect, ...shuffledWrong].sort(() => Math.random() - 0.5);
+  // Используем useState для стабилизации порядка — иначе при каждом клике
+  // массив перемешивался бы заново, и индексы выбранных задач менялись
+  const [mixedTasks] = useState<{ text: string; correct: boolean; reason?: string }[]>(() => {
+    const allTasks: { text: string; correct: boolean; reason?: string }[] = [
+      ...content.correctTasks.map(t => ({ text: t, correct: true as const })),
+      { text: 'Сделать буклет', correct: false, reason: 'Слишком общая — это цель, не задача' },
+      { text: 'Провести исследование', correct: false, reason: 'Слишком общая, не конкретизировано что исследовать' },
+      { text: 'Изучить литературу и провести опрос', correct: false, reason: 'Два действия в одной задаче' },
+      { text: 'Подготовить презентацию', correct: false, reason: 'Это не шаг к цели, а финальное оформление' },
+      { text: 'Собрать данные', correct: false, reason: 'Неясно какие данные и как' },
+    ];
+    return allTasks.sort(() => Math.random() - 0.5);
+  });
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);

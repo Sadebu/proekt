@@ -208,6 +208,13 @@ function GameContent({ gameState, onCompleteScene, onGoToScene, onAddMiniGameRes
   const [checkpointEvaluated, setCheckpointEvaluated] = useState(false);
   const [showNarrative, setShowNarrative] = useState(0);
 
+  // Сбрасываем состояния при смене сцены
+  React.useEffect(() => {
+    setMiniGameCompleted(false);
+    setCheckpointEvaluated(false);
+    setShowNarrative(0);
+  }, [scene?.id]);
+
   if (!scene) {
     return (
       <div className="text-center py-12">
@@ -228,6 +235,19 @@ function GameContent({ gameState, onCompleteScene, onGoToScene, onAddMiniGameRes
       completed: true,
       timestamp: new Date().toISOString(),
     });
+    
+    // Обновляем projectData на основе результатов мини-игры passport_draft
+    if (gameId === 'passport_draft' && score >= 4) {
+      // Извлекаем данные из answers (формат: "Тема проекта: ✓ конкретная")
+      const themeAnswer = answers.find(a => a.includes('Тема') && a.includes('✓'));
+      const problemAnswer = answers.find(a => a.includes('Проблема') && a.includes('✓'));
+      const goalAnswer = answers.find(a => a.includes('Цель') && a.includes('✓'));
+      
+      if (themeAnswer) onUpdateProjectData({ theme: 'Тема проекта выбрана' });
+      if (problemAnswer) onUpdateProjectData({ problem: 'Проблема сформулирована' });
+      if (goalAnswer) onUpdateProjectData({ goal: 'Цель определена' });
+    }
+    
     setMiniGameCompleted(true);
   };
 
